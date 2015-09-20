@@ -23,22 +23,26 @@ impl LcsTable {
     }
 
     pub fn longest_common_subsequence<'a, T: Eq>(&self, a: &'a [T], b: &'a [T]) -> Vec<&'a T> {
-        self.backtrack(a, b, a.len(), b.len())
-    }
+        if a.is_empty() || b.is_empty() {
+            return vec![]
+        }
 
-    fn backtrack<'a, T: Eq>(&self, a: &'a [T], b: &'a [T], i: usize, j: usize) -> Vec<&'a T> {
-        if i == 0 || j == 0 {
-            vec![]
-        } else if a[i - 1] == b[j - 1] {
-            let mut prefix_lcs = self.backtrack(a, b, i - 1, j - 1);
+        let i = a.len();
+        let j = b.len();
+
+        let rest_a = &a[..i - 1];
+        let rest_b = &b[..j - 1];
+
+        if a.last().unwrap() == b.last().unwrap() {
+            let mut prefix_lcs = self.longest_common_subsequence(rest_a, rest_b);
             prefix_lcs.push(&a[i - 1]);
 
             prefix_lcs
         } else {
             if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-                self.backtrack(a, b, i, j - 1)
+                self.longest_common_subsequence(a, rest_b)
             } else {
-                self.backtrack(a, b, i - 1, j)
+                self.longest_common_subsequence(rest_a, b)
             }
         }
     }
