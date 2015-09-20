@@ -1,4 +1,6 @@
 use std::cmp;
+use std::hash::Hash;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct LcsTable {
@@ -46,6 +48,46 @@ impl LcsTable {
             }
         }
     }
+
+    pub fn longest_common_subsequences<'a, T>(&self, a: &'a [T], b: &'a [T]) -> HashSet<Vec<&'a T>>
+            where T: Eq + Hash {
+        if a.is_empty() || b.is_empty() {
+            let mut ret = HashSet::new();
+            ret.insert(vec![]);
+            return ret;
+        }
+
+        let i = a.len();
+        let j = b.len();
+
+        let rest_a = &a[..i - 1];
+        let rest_b = &b[..j - 1];
+
+        if a.last().unwrap() == b.last().unwrap() {
+            let mut sequences = HashSet::new();
+            for mut lcs in self.longest_common_subsequences(rest_a, rest_b) {
+                lcs.push(&a[i - 1]);
+                sequences.insert(lcs);
+            }
+            sequences
+        } else {
+            let mut sequences = HashSet::new();
+
+            if self.lengths[i][j - 1] >= self.lengths[i - 1][j] {
+                for lsc in self.longest_common_subsequences(a, rest_b) {
+                    sequences.insert(lsc);
+                }
+            }
+
+            if self.lengths[i - 1][j] >= self.lengths[i][j - 1] {
+                for lsc in self.longest_common_subsequences(rest_a, b) {
+                    sequences.insert(lsc);
+                }
+            }
+
+            sequences
+        }
+    }
 }
 
 #[test]
@@ -75,4 +117,16 @@ fn test_lcs_lcs() {
 
     let lcs = LcsTable::new(&a, &b).longest_common_subsequence(&a, &b);
     assert_eq!(vec![&'a', &'b', &'c'], lcs);
+}
+
+#[test]
+fn test_longest_common_subsequences() {
+    let a: Vec<_> = "gac".chars().collect();
+    let b: Vec<_> = "agcat".chars().collect();
+
+    let subsequences = LcsTable::new(&a, &b).longest_common_subsequences(&a, &b);
+    assert_eq!(3, subsequences.len());
+    assert!(subsequences.contains(&vec![&'a', &'c']));
+    assert!(subsequences.contains(&vec![&'g', &'a']));
+    assert!(subsequences.contains(&vec![&'g', &'c']));
 }
