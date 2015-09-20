@@ -1,0 +1,4 @@
+[package]
+name = "lcs"
+version = "0.1.0"
+authors = ["Ulysse Carion <ulysse@ulysse.io>"]
