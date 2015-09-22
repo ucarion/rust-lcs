@@ -1,3 +1,11 @@
+//! This crate provides utilities around [least common subsequences][wiki]. From a least common
+//! subsequences table, you can also calculate diffs (see `LcsTable::diff`).
+//!
+//! Usage of this crate is centered around `LcsTable`, so most interesting documentation can be
+//! found there.
+//!
+//! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+
 use std::cmp;
 use std::hash::Hash;
 use std::collections::HashSet;
@@ -8,6 +16,13 @@ pub struct LcsTable<'a, T: 'a> {
 
     a: &'a [T],
     b: &'a [T]
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DiffComponent<T> {
+    Insertion(T),
+    Unchanged(T, T),
+    Deletion(T)
 }
 
 /// Finding longest common subsequences ("LCS") between two sequences requires constructing a *n x
@@ -123,6 +138,73 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
             sequences
         }
     }
+
+    /// Computes a diff from `a` to `b`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use lcs::{DiffComponent, LcsTable};
+    ///
+    /// let a: Vec<_> = "axb".chars().collect();
+    /// let b: Vec<_> = "abc".chars().collect();
+    ///
+    /// let table = LcsTable::new(&a, &b);
+    /// let diff = table.diff();
+    /// assert_eq!(diff, vec![
+    ///     DiffComponent::Unchanged(&'a', &'a'),
+    ///     DiffComponent::Deletion(&'x'),
+    ///     DiffComponent::Unchanged(&'b', &'b'),
+    ///     DiffComponent::Insertion(&'c')
+    /// ]);
+    /// ```
+    pub fn diff(&self) -> Vec<DiffComponent<&T>> {
+        self.compute_diff(self.a.len(), self.b.len())
+    }
+
+    fn compute_diff(&self, i: usize, j: usize) -> Vec<DiffComponent<&T>> {
+        if i == 0 && j == 0 {
+            return vec![];
+        }
+
+        enum DiffType {
+            Insertion,
+            Unchanged,
+            Deletion
+        }
+
+        let diff_type = if i == 0 {
+            DiffType::Insertion
+        } else if j == 0 {
+            DiffType::Deletion
+        } else if self.a[i - 1] == self.b[j - 1] {
+            DiffType::Unchanged
+        } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+            DiffType::Insertion
+        } else {
+            DiffType::Deletion
+        };
+
+        let (to_add, mut rest_diff) = match diff_type {
+            DiffType::Insertion => {
+                (DiffComponent::Insertion(&self.b[j - 1]),
+                    self.compute_diff(i, j - 1))
+            },
+
+            DiffType::Unchanged => {
+                (DiffComponent::Unchanged(&self.a[i - 1], &self.b[j - 1]),
+                    self.compute_diff(i - 1, j - 1))
+            },
+
+            DiffType::Deletion => {
+                (DiffComponent::Deletion(&self.a[i - 1]),
+                    self.compute_diff(i - 1, j))
+            }
+        };
+
+        rest_diff.push(to_add);
+        rest_diff
+    }
 }
 
 #[test]
@@ -166,4 +248,21 @@ fn test_longest_common_subsequences() {
     assert!(subsequences.contains(&vec![&'a', &'c']));
     assert!(subsequences.contains(&vec![&'g', &'a']));
     assert!(subsequences.contains(&vec![&'g', &'c']));
+}
+
+#[test]
+fn test_diff() {
+    use DiffComponent::*;
+
+    let a: Vec<_> = "axb".chars().collect();
+    let b: Vec<_> = "abc".chars().collect();
+
+    let table = LcsTable::new(&a, &b);
+    let diff = table.diff();
+    assert_eq!(diff, vec![
+        Unchanged(&'a', &'a'),
+        Deletion(&'x'),
+        Unchanged(&'b', &'b'),
+        Insertion(&'c')
+    ]);
 }
