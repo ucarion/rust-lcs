@@ -3,12 +3,19 @@ use std::hash::Hash;
 use std::collections::HashSet;
 
 #[derive(Debug)]
-pub struct LcsTable {
-    pub lengths: Vec<Vec<i64>>
+pub struct LcsTable<'a, T: 'a> {
+    lengths: Vec<Vec<i64>>,
+
+    a: &'a [T],
+    b: &'a [T]
 }
 
-impl LcsTable {
-    pub fn new<T: Eq>(a: &[T], b: &[T]) -> LcsTable {
+/// Finding longest common subsequences ("LCS") between two sequences requires constructing a *n x
+/// m* table (where the two sequences are of lengths *n* and *m*). This is expensive to construct
+/// and there's a lot of stuff you can calculate using it, so `LcsTable` holds onto this data.
+impl<'a, T> LcsTable<'a, T> where T: Eq {
+    /// Constructs a LcsTable for matching between two sequences `a` and `b`.
+    pub fn new(a: &'a [T], b: &'a [T]) -> LcsTable<'a, T> {
         let mut lengths = vec![vec![0; b.len() + 1]; a.len() + 1];
 
         for i in 0..a.len() {
@@ -21,52 +28,80 @@ impl LcsTable {
             }
         }
 
-        LcsTable { lengths: lengths }
+        LcsTable { lengths: lengths, a: a, b: b }
     }
 
-    pub fn longest_common_subsequence<'a, T: Eq>(&self, a: &'a [T], b: &'a [T]) -> Vec<&'a T> {
-        if a.is_empty() || b.is_empty() {
-            return vec![]
+    /// Gets the longest common subsequence between `a` and `b`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::LcsTable;
+    ///
+    /// let a: Vec<_> = "a--b---c".chars().collect();
+    /// let b: Vec<_> = "abc".chars().collect();
+    ///
+    /// let table = LcsTable::new(&a, &b);
+    /// let lcs = table.longest_common_subsequence();
+    ///
+    /// assert_eq!(vec![&'a', &'b', &'c'], lcs);
+    /// ```
+    pub fn longest_common_subsequence(&self) -> Vec<&T> {
+        self.find_lcs(self.a.len(), self.b.len())
+    }
+
+    fn find_lcs(&self, i: usize, j: usize) -> Vec<&T> {
+        if i == 0 || j == 0 {
+            return vec![];
         }
 
-        let i = a.len();
-        let j = b.len();
-
-        let rest_a = &a[..i - 1];
-        let rest_b = &b[..j - 1];
-
-        if a.last().unwrap() == b.last().unwrap() {
-            let mut prefix_lcs = self.longest_common_subsequence(rest_a, rest_b);
-            prefix_lcs.push(&a[i - 1]);
-
+        if self.a[i - 1] == self.b[j - 1] {
+            let mut prefix_lcs = self.find_lcs(i - 1, j - 1);
+            prefix_lcs.push(&self.a[i - 1]);
             prefix_lcs
         } else {
             if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-                self.longest_common_subsequence(a, rest_b)
+                self.find_lcs(i, j - 1)
             } else {
-                self.longest_common_subsequence(rest_a, b)
+                self.find_lcs(i - 1, j)
             }
         }
     }
 
-    pub fn longest_common_subsequences<'a, T>(&self, a: &'a [T], b: &'a [T]) -> HashSet<Vec<&'a T>>
-            where T: Eq + Hash {
-        if a.is_empty() || b.is_empty() {
+    /// Gets all longest common subsequences between `a` and `b`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::LcsTable;
+    ///
+    /// let a: Vec<_> = "aaabbb-cccddd".chars().collect();
+    /// let b: Vec<_> = "cdab".chars().collect();
+    ///
+    /// let table = LcsTable::new(&a, &b);
+    /// let lcses = table.longest_common_subsequences();
+    ///
+    /// assert_eq!(2, lcses.len());
+    /// assert!(lcses.contains(&vec![&'a', &'b']));
+    /// assert!(lcses.contains(&vec![&'c', &'d']));
+    /// ```
+    pub fn longest_common_subsequences(&self) -> HashSet<Vec<&T>>
+            where T: Hash {
+        self.find_all_lcs(self.a.len(), self.b.len())
+    }
+
+    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<&T>>
+            where T: Hash {
+        if i == 0 || j == 0 {
             let mut ret = HashSet::new();
             ret.insert(vec![]);
             return ret;
         }
 
-        let i = a.len();
-        let j = b.len();
-
-        let rest_a = &a[..i - 1];
-        let rest_b = &b[..j - 1];
-
-        if a.last().unwrap() == b.last().unwrap() {
+        if self.a[i - 1] == self.b[j - 1] {
             let mut sequences = HashSet::new();
-            for mut lcs in self.longest_common_subsequences(rest_a, rest_b) {
-                lcs.push(&a[i - 1]);
+            for mut lcs in self.find_all_lcs(i - 1, j - 1) {
+                lcs.push(&self.a[i - 1]);
                 sequences.insert(lcs);
             }
             sequences
@@ -74,13 +109,13 @@ impl LcsTable {
             let mut sequences = HashSet::new();
 
             if self.lengths[i][j - 1] >= self.lengths[i - 1][j] {
-                for lsc in self.longest_common_subsequences(a, rest_b) {
+                for lsc in self.find_all_lcs(i, j - 1) {
                     sequences.insert(lsc);
                 }
             }
 
             if self.lengths[i - 1][j] >= self.lengths[i][j - 1] {
-                for lsc in self.longest_common_subsequences(rest_a, b) {
+                for lsc in self.find_all_lcs(i - 1, j) {
                     sequences.insert(lsc);
                 }
             }
@@ -115,7 +150,8 @@ fn test_lcs_lcs() {
     let a: Vec<_> = "XXXaXXXbXXXc".chars().collect();
     let b: Vec<_> = "YYaYYbYYc".chars().collect();
 
-    let lcs = LcsTable::new(&a, &b).longest_common_subsequence(&a, &b);
+    let table = LcsTable::new(&a, &b);
+    let lcs = table.longest_common_subsequence();
     assert_eq!(vec![&'a', &'b', &'c'], lcs);
 }
 
@@ -124,7 +160,8 @@ fn test_longest_common_subsequences() {
     let a: Vec<_> = "gac".chars().collect();
     let b: Vec<_> = "agcat".chars().collect();
 
-    let subsequences = LcsTable::new(&a, &b).longest_common_subsequences(&a, &b);
+    let table = LcsTable::new(&a, &b);
+    let subsequences = table.longest_common_subsequences();
     assert_eq!(3, subsequences.len());
     assert!(subsequences.contains(&vec![&'a', &'c']));
     assert!(subsequences.contains(&vec![&'g', &'a']));
