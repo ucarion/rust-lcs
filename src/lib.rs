@@ -13,6 +13,8 @@
 //!
 //! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
 
+mod substring;
 mod subsequence;
 
+pub use substring::Substring;
 pub use subsequence::{Subsequence, DiffComponent};
