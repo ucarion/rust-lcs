@@ -1,7 +1,7 @@
 [package]
 name = "lcs"
-version = "0.1.1"
-authors = ["Ulysse Carion <ulysse@ulysse.io>"]
-description = "A library for computing longest common subsequences and diffs"
+version = "0.3.0"
+authors = ["Ulysse Carion <ulysse@ulysse.io>", "Henning Ottesen <henning@live.no>"]
+description = "A library for finding longest common subsequences, diffs and longest common substrings."
 license = "MIT"
 homepage = "https://github.com/ucarion/rust-lcs"

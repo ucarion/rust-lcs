@@ -1,6 +1,8 @@
-//! Longest common subsequence
-//! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
-//! [wikibooks]: https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_subsequence
+// Longest common subsequence implementation
+//
+// Useful links:
+// [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+// [wikibooks]: https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_subsequence
 
 use super::ptr_eq_vec::PtrEqVecPair;
 use std::collections::HashSet;
@@ -20,11 +22,11 @@ pub enum DiffComponent<T> {
     Deletion(T)
 }
 
-/// Finding longest common subsequences ("LCS") between two sequences requires constructing a *n x
+/// Finding longest common subsequences between two sequences requires constructing a *n x
 /// m* table (where the two sequences are of lengths *n* and *m*). This is expensive to construct
 /// and there's a lot of stuff you can calculate using it, so `Subsequence` holds onto this data.
 impl<'a, T> Subsequence<'a, T> where T: Eq {
-    /// Constructs a table for matching between two sequences `a` and `b`.
+    /// Construct new Subsequence for matching between two input sequences `a` and `b`.
     pub fn new(a: &'a [T], b: &'a [T]) -> Subsequence<'a, T> {
         let mut lengths = vec![vec![0; b.len() + 1]; a.len() + 1];
 
@@ -41,7 +43,10 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         Subsequence { lengths: lengths, a: a, b: b }
     }
 
-    /// Gets the longest common subsequence between `a` and `b`.
+    /// Gets the longest common subsequence between input sequence `a` and input sequence `b`.
+    /// Returned elements are in the form `(elem_a, elem_b)`, where `elem_a` is a reference
+    /// into input sequence `a`, `elem_b` is a reference into input sequence `b`,
+    /// and `elem_a == elem_b`.
     ///
     /// Example:
     ///
@@ -50,21 +55,31 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
     ///
     /// let a: Vec<_> = "a--b---c".chars().collect();
     /// let b: Vec<_> = "abc".chars().collect();
+    /// let ab = vec![(&a[0], &b[0]),
+    ///     (&a[3], &b[1]), (&a[7], &b[2])];
     ///
-    /// let table = Subsequence::new(&a, &b);
-    /// let lcs = table.as_ref_both();
+    /// let subseq = Subsequence::new(&a, &b);
+    /// let ref_both = subseq.as_ref_both();
     ///
-    /// assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
+    /// assert_eq!(ab, ref_both);
+    /// for i in ref_both.into_iter().zip(ab.into_iter()) {
+    ///     assert_eq!((i.0).0 as *const _, (i.1).0 as *const _);
+    ///     assert_eq!((i.0).0 as *const _, (i.1).0 as *const _);
+    /// }
     /// ```
     pub fn as_ref_both(&self) -> Vec<(&T, &T)> {
         self.find_lcs(self.a.len(), self.b.len())
     }
 
+    /// Gets the longest common subsequence between `a` and `b`. Returned elements are references into
+    /// input sequence `a`.
     pub fn as_ref_a(&self) -> Vec<&T> {
         let v = self.find_lcs(self.a.len(), self.b.len());
         v.iter().map(|e| e.0).collect::<Vec<&T>>()
     }
 
+    /// Gets the longest common subsequence between `a` and `b`. Returned elements are references into
+    /// input sequence `b`.
     pub fn as_ref_b(&self) -> Vec<&T> {
         let v = self.find_lcs(self.a.len(), self.b.len());
         v.iter().map(|e| e.1).collect::<Vec<&T>>()
@@ -88,7 +103,10 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         }
     }
 
-    /// Gets all longest common subsequences between `a` and `b`.
+    /// Gets all longest common subsequencesbetween input sequence `a` and input sequence `b`.
+    /// Returned elements are in the form `(elem_a, elem_b)`, where `elem_a` is a reference
+    /// into input sequence `a`, `elem_b` is a reference into input sequence `b`,
+    /// and `elem_a == elem_b`.
     ///
     /// Example:
     ///
@@ -98,8 +116,8 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
     /// let a: Vec<_> = "aba".chars().collect();
     /// let b: Vec<_> = "bab".chars().collect();
     ///
-    /// let table = Subsequence::new(&a, &b);
-    /// let lcses = table.all_as_ref_both();
+    /// let subseq = Subsequence::new(&a, &b);
+    /// let lcses = subseq.all_as_ref_both();
     ///
     /// assert_eq!(2, lcses.len());
     /// assert!(lcses.contains(&vec![(&'b', &'b'), (&'a', &'a')]));
@@ -112,6 +130,8 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         }).collect::<Vec<Vec<(&T, &T)>>>()
     }
 
+    /// Gets all longest common subsequences between input sequence `a` and input sequence `b`.
+    /// Returned elements are references into input sequence `a`.
     pub fn all_as_ref_a(&self) -> Vec<Vec<&T>> {
         let set = self.find_all_lcs(self.a.len(), self.b.len());
         set.into_iter().map(|v| {
@@ -119,6 +139,8 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         }).collect::<Vec<Vec<&T>>>()
     }
 
+    /// Gets all longest common subsequencesbetween input sequence `a` and input sequence `b`.
+    /// Returned elements are references into input sequence `b`.
     pub fn all_as_ref_b(&self) -> Vec<Vec<&T>> {
         let set = self.find_all_lcs(self.a.len(), self.b.len());
         set.into_iter().map(|v| {
@@ -159,7 +181,7 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         }
     }
 
-    /// Computes a diff from `a` to `b`.
+    /// Computes a diff from input sequence `a` to input sequence `b`.
     ///
     /// # Example
     ///
@@ -169,8 +191,8 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
     /// let a: Vec<_> = "axb".chars().collect();
     /// let b: Vec<_> = "abc".chars().collect();
     ///
-    /// let table = Subsequence::new(&a, &b);
-    /// let diff = table.diff();
+    /// let subseq = Subsequence::new(&a, &b);
+    /// let diff = subseq.diff();
     /// assert_eq!(diff, vec![
     ///     DiffComponent::Unchanged(&'a', &'a'),
     ///     DiffComponent::Deletion(&'x'),
@@ -226,6 +248,7 @@ impl<'a, T> Subsequence<'a, T> where T: Eq {
         rest_diff
     }
 
+    /// Retrieve length of longest common subsequences.
     pub fn len(&self) -> i64 {
         if self.a.len() == 0 || self.b.len() == 0 {
             return 0

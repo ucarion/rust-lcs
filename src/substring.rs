@@ -1,6 +1,8 @@
-//! Longest common substring
-//! [wiki]: https://en.wikipedia.org/wiki/Longest_common_substring_problem
-//! [wikibooks]: https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring
+// Longest common substring implementation
+//
+// Useful links:
+// [wiki]: https://en.wikipedia.org/wiki/Longest_common_substring_problem
+// [wikibooks]: https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring
 
 use std::ops::Range;
 
@@ -11,7 +13,10 @@ pub struct Substring<'a, T: 'a> {
     b: &'a [T]
 }
 
+/// Find longest common substring between two sequences `a` and `b`.
 impl<'a, T> Substring<'a, T> where T: Eq {
+    /// Create new substring by calculating the longest substring
+    /// between two slices `a` and `b`.
     pub fn new(a: &'a [T], b: &'a [T]) -> Substring<'a, T> {
         let mut start_a = 0;
         let mut start_b = 0;
@@ -41,26 +46,94 @@ impl<'a, T> Substring<'a, T> where T: Eq {
         }
     }
 
+    /// Retrieve the length of the substring.
     #[inline]
     pub fn len(&self) -> usize {
         self.sub_a.len()
     }
 
+    /// Retrieve the substring as a slice into input sequence `a`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::Substring;
+    ///
+    /// let a: Vec<_> = "123456".chars().collect();
+    /// let b: Vec<_> = "456789".chars().collect();
+    ///
+    /// let substr = Substring::<char>::new(&a[..], &b[..]);
+    /// let ref_a = substr.as_ref_a();
+    /// assert_eq!(&a[3..6], ref_a);
+    /// ```
     #[inline]
     pub fn as_ref_a(&self) -> &'a [T] {
         &self.a[self.sub_a.clone()]
     }
 
+    /// Retrieve the substring as a slice into input sequence `b`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::Substring;
+    ///
+    /// let a: Vec<_> = "123456".chars().collect();
+    /// let b: Vec<_> = "456789".chars().collect();
+    ///
+    /// let substr = Substring::<char>::new(&a[..], &b[..]);
+    /// let ref_b = substr.as_ref_b();
+    /// assert_eq!(&b[0..3], ref_b);
+    /// ```
     #[inline]
     pub fn as_ref_b(&self) -> &'a [T] {
         &self.b[self.sub_b.clone()]
     }
 
+    /// Retrieve the substring as a Vector containing reference pairs into both input sequences.
+    /// Returned elements are in the form `(elem_a, elem_b)`, where `elem_a` is a reference
+    /// into input sequence `a`, `elem_b` is a reference into input sequence `b`, and `elem_a == elem_b`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::Substring;
+    ///
+    /// let a = vec![1, 2, 3, 4, 5, 6];
+    /// let b = vec![4, 5, 6, 7, 8, 9];
+    /// let ab = vec![(&a[3], &b[0]),
+    ///     (&a[4], &b[1]), (&a[5], &b[2])];
+    ///
+    /// let substr = Substring::new(&a, &b);
+    /// let ref_both = substr.as_ref_both();
+    ///
+    /// assert_eq!(ref_both, ab);
+    /// for i in ref_both.into_iter().zip(ab.into_iter()) {
+    ///     assert_eq!((i.0).0 as *const _, (i.1).0 as *const _);
+    ///     assert_eq!((i.0).0 as *const _, (i.1).0 as *const _);
+    /// }
+    /// ```
     #[inline]
     pub fn as_ref_both(&self) -> Vec<(&'a T, &'a T)> {
         self.as_ref_a().iter().zip(self.as_ref_b().iter()).collect::<Vec<(&T, &T)>>()
     }
 
+    /// Retrieve the substring as a Vector cloned from input sequence `a`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::Substring;
+    ///
+    /// let a = vec![1, 2, 3, 4, 5, 6];
+    /// let b = vec![4, 5, 6, 7, 8, 9];
+    /// let ab = vec![4, 5, 6];
+    ///
+    /// let substr = Substring::new(&a, &b);
+    /// let cloned = substr.cloned();
+    ///
+    /// assert_eq!(cloned, ab);
+    /// ```
     #[inline]
     pub fn cloned(&self) -> Vec<T> where T: Clone {
         self.as_ref_a().into_iter().cloned().collect::<Vec<T>>()
@@ -68,6 +141,22 @@ impl<'a, T> Substring<'a, T> where T: Eq {
 }
 
 impl<'a> ToString for Substring<'a, char> {
+    /// Retrieve the substring as a String cloned from input sequence `a`.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// use lcs::Substring;
+    ///
+    /// let a: Vec<_> = "0123456".chars().collect();
+    /// let b: Vec<_> = "456789".chars().collect();
+    /// let ab = "456";
+    ///
+    /// let substr = Substring::new(&a, &b);
+    /// let as_str = substr.to_string();
+    ///
+    /// assert_eq!(as_str, ab);
+    /// ```
     #[inline]
     fn to_string(&self) -> String {
         self.as_ref_a().into_iter().cloned().collect::<String>()

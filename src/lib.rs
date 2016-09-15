@@ -1,17 +1,9 @@
-//! This crate provides utilities around [least common subsequences][wiki]. From a least common
-//! subsequences table, you can also calculate diffs (see `LcsTable::diff`).
-//!
-//! Usage of this crate is centered around `LcsTable`, so most interesting documentation can be
-//! found there.
-//!
-//! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
-//! This crate provides utilities around [least common subsequences][wiki]. From a least common
-//! subsequences table, you can also calculate diffs (see `LcsTable::diff`).
-//!
-//! Usage of this crate is centered around `LcsTable`, so most interesting documentation can be
-//! found there.
-//!
-//! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+//! This crate provides implementations for solving the [longest common subsequence problem][wiki_seq]
+//! and the [longest common substring problem][wiki_str]. Implementations are provided by
+//! the [Subsequence](struct.Subsequence.html) struct and the [Substring](struct.Substring.html) struct.
+//! [wiki_seq]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+//! [wiki_str]: https://en.wikipedia.org/wiki/Longest_common_substring_problem
+
 
 mod substring;
 mod subsequence;
