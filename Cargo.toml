@@ -1,6 +1,6 @@
 [package]
 name = "lcs"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Ulysse Carion <ulysse@ulysse.io>"]
 description = "A library for computing longest common subsequences and diffs"
 license = "MIT"

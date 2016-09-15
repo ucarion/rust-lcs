@@ -46,7 +46,9 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
         LcsTable { lengths: lengths, a: a, b: b }
     }
 
-    /// Gets the longest common subsequence between `a` and `b`.
+    /// Gets the longest common subsequence between `a` and `b`. Returned elements are in the form
+    /// `(elem_a, elem_b)`, where `elem_a` is a reference to an element in `a`, `elem_b` is a
+    /// reference to an element in `b`, and `elem_a == elem_b`.
     ///
     /// Example:
     ///
@@ -59,20 +61,20 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// let table = LcsTable::new(&a, &b);
     /// let lcs = table.longest_common_subsequence();
     ///
-    /// assert_eq!(vec![&'a', &'b', &'c'], lcs);
+    /// assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
     /// ```
-    pub fn longest_common_subsequence(&self) -> Vec<&T> {
+    pub fn longest_common_subsequence(&self) -> Vec<(&T, &T)> {
         self.find_lcs(self.a.len(), self.b.len())
     }
 
-    fn find_lcs(&self, i: usize, j: usize) -> Vec<&T> {
+    fn find_lcs(&self, i: usize, j: usize) -> Vec<(&T, &T)> {
         if i == 0 || j == 0 {
             return vec![];
         }
 
         if self.a[i - 1] == self.b[j - 1] {
             let mut prefix_lcs = self.find_lcs(i - 1, j - 1);
-            prefix_lcs.push(&self.a[i - 1]);
+            prefix_lcs.push((&self.a[i - 1], &self.b[j - 1]));
             prefix_lcs
         } else {
             if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
@@ -83,29 +85,31 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
         }
     }
 
-    /// Gets all longest common subsequences between `a` and `b`.
+    /// Gets all longest common subsequences between `a` and `b`. Returned elements are in the form
+    /// `(elem_a, elem_b)`, where `elem_a` is a reference to an element in `a`, `elem_b` is a
+    /// reference to an element in `b`, and `elem_a == elem_b`.
     ///
     /// Example:
     ///
     /// ```
     /// use lcs::LcsTable;
     ///
-    /// let a: Vec<_> = "aaabbb-cccddd".chars().collect();
-    /// let b: Vec<_> = "cdab".chars().collect();
+    /// let a: Vec<_> = "gac".chars().collect();
+    /// let b: Vec<_> = "agcat".chars().collect();
     ///
     /// let table = LcsTable::new(&a, &b);
-    /// let lcses = table.longest_common_subsequences();
-    ///
-    /// assert_eq!(2, lcses.len());
-    /// assert!(lcses.contains(&vec![&'a', &'b']));
-    /// assert!(lcses.contains(&vec![&'c', &'d']));
+    /// let subsequences = table.longest_common_subsequences();
+    /// assert_eq!(3, subsequences.len());
+    /// assert!(subsequences.contains(&vec![(&'a', &'a'), (&'c', &'c')]));
+    /// assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
+    /// assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
     /// ```
-    pub fn longest_common_subsequences(&self) -> HashSet<Vec<&T>>
+    pub fn longest_common_subsequences(&self) -> HashSet<Vec<(&T, &T)>>
             where T: Hash {
         self.find_all_lcs(self.a.len(), self.b.len())
     }
 
-    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<&T>>
+    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<(&T, &T)>>
             where T: Hash {
         if i == 0 || j == 0 {
             let mut ret = HashSet::new();
@@ -116,7 +120,7 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
         if self.a[i - 1] == self.b[j - 1] {
             let mut sequences = HashSet::new();
             for mut lcs in self.find_all_lcs(i - 1, j - 1) {
-                lcs.push(&self.a[i - 1]);
+                lcs.push((&self.a[i - 1], &self.b[j - 1]));
                 sequences.insert(lcs);
             }
             sequences
@@ -234,7 +238,7 @@ fn test_lcs_lcs() {
 
     let table = LcsTable::new(&a, &b);
     let lcs = table.longest_common_subsequence();
-    assert_eq!(vec![&'a', &'b', &'c'], lcs);
+    assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
 }
 
 #[test]
@@ -245,9 +249,9 @@ fn test_longest_common_subsequences() {
     let table = LcsTable::new(&a, &b);
     let subsequences = table.longest_common_subsequences();
     assert_eq!(3, subsequences.len());
-    assert!(subsequences.contains(&vec![&'a', &'c']));
-    assert!(subsequences.contains(&vec![&'g', &'a']));
-    assert!(subsequences.contains(&vec![&'g', &'c']));
+    assert!(subsequences.contains(&vec![(&'a', &'a'), (&'c', &'c')]));
+    assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
+    assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
 }
 
 #[test]
