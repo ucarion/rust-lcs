@@ -15,6 +15,7 @@
 
 mod substring;
 mod subsequence;
+mod ptr_eq_vec;
 
 pub use substring::Substring;
 pub use subsequence::{Subsequence, DiffComponent};
