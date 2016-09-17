@@ -7,7 +7,7 @@
 //! [wiki]: https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
 
 use std::cmp;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -23,6 +23,10 @@ pub enum DiffComponent<T> {
     Insertion(T),
     Unchanged(T, T),
     Deletion(T)
+}
+
+struct PtrEqVecPair<'a, T: 'a>{
+    inner: Vec<(&'a T, &'a T)>
 }
 
 /// Finding longest common subsequences ("LCS") between two sequences requires constructing a *n x
@@ -104,23 +108,24 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
     /// assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
     /// ```
-    pub fn longest_common_subsequences(&self) -> HashSet<Vec<(&T, &T)>>
-            where T: Hash {
-        self.find_all_lcs(self.a.len(), self.b.len())
+    pub fn longest_common_subsequences(&self) -> Vec<Vec<(&T, &T)>> {
+        let set = self.find_all_lcs(self.a.len(), self.b.len());
+        set.into_iter().map(|v| {
+            v.unpack()
+        }).collect::<Vec<Vec<(&T, &T)>>>()
     }
 
-    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<(&T, &T)>>
-            where T: Hash {
+    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<PtrEqVecPair<T>> {
         if i == 0 || j == 0 {
             let mut ret = HashSet::new();
-            ret.insert(vec![]);
+            ret.insert(PtrEqVecPair::new());
             return ret;
         }
 
         if self.a[i - 1] == self.b[j - 1] {
             let mut sequences = HashSet::new();
             for mut lcs in self.find_all_lcs(i - 1, j - 1) {
-                lcs.push((&self.a[i - 1], &self.b[j - 1]));
+                lcs.inner.push((&self.a[i - 1], &self.b[j - 1]));
                 sequences.insert(lcs);
             }
             sequences
@@ -211,6 +216,88 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     }
 }
 
+impl<'a, T> PtrEqVecPair<'a, T> {
+    fn new() -> PtrEqVecPair<'a, T> {
+        PtrEqVecPair{inner: Vec::new()}
+    }
+
+    fn unpack(self) -> Vec<(&'a T, &'a T)> {
+        self.inner
+    }
+}
+
+impl<'a, T> PartialEq for PtrEqVecPair<'a, T> {
+    fn eq(&self, other: &PtrEqVecPair<T>) -> bool {
+        if self.inner.len() != other.inner.len() {
+            return false;
+        }
+
+        for i in self.inner.iter().zip(other.inner.iter()) {
+            if ((i.0).0 as *const T) != ((i.1).0 as *const T) ||
+               ((i.0).1 as *const T) != ((i.1).1 as *const T) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<'a, T> Eq for PtrEqVecPair<'a, T> {}
+
+impl<'a, T> Hash for PtrEqVecPair<'a, T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for i in self.inner.iter() {
+            let ptr1 = (i.0 as *const T) as usize;
+            let ptr2 = (i.1 as *const T) as usize;
+            state.write_usize(ptr1);
+            state.write_usize(ptr2);
+        }
+    }
+}
+
+
+
+#[cfg(test)]
+fn zip_ref_vec_pair<'a, T>(a: &Vec<Vec<&'a T>>, b: &Vec<Vec<&'a T>>)
+    -> Vec<Vec<(&'a T, &'a T)>> {
+    a.iter().zip(b.iter())
+        .map(|v| {
+            v.0.iter().zip(v.1.iter())
+                .map(|e| (*e.0, *e.1))
+                .collect::<Vec<(&T, &T)>>()
+        }).collect::<Vec<Vec<(&T, &T)>>>()
+}
+
+#[cfg(test)]
+fn vec_ptr_eq_pair<T>(a: &Vec<(&T, &T)>, b: &Vec<(&T, &T)>) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    for i in a.iter().zip(b.iter()) {
+        if ((i.0).0 as *const T) != ((i.1).0 as *const T) {
+            return false;
+        }
+        if ((i.0).1 as *const T) != ((i.1).1 as *const T) {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+fn vec2_ptr_eq_pair<T>(a: &Vec<Vec<(&T, &T)>>, b: &Vec<Vec<(&T, &T)>>) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    for i in a.iter() {
+        let found = b.iter().find(|j|{ vec_ptr_eq_pair(i, j)});
+        if found.is_none() {
+            return false;
+        }
+    }
+    true
+}
+
 #[test]
 fn test_lcs_table() {
     // Example taken from:
@@ -236,22 +323,54 @@ fn test_lcs_lcs() {
     let a: Vec<_> = "XXXaXXXbXXXc".chars().collect();
     let b: Vec<_> = "YYaYYbYYc".chars().collect();
 
+    let ref_a: Vec<&char> = vec![&a[3], &a[7], &a[11]];
+    let ref_b: Vec<&char> = vec![&b[2], &b[5], &b[8]];
+    let ref_both = ref_a.iter().zip(ref_b.iter())
+        .map(|e| (*e.0, *e.1)).collect::<Vec<(&char, &char)>>();
+
     let table = LcsTable::new(&a, &b);
-    let lcs = table.longest_common_subsequence();
-    assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
+    let subseq = table.longest_common_subsequence();
+    assert!(vec_ptr_eq_pair(&ref_both, &subseq));
 }
 
 #[test]
 fn test_longest_common_subsequences() {
     let a: Vec<_> = "gac".chars().collect();
     let b: Vec<_> = "agcat".chars().collect();
+    let ref_a: Vec<Vec<&char>> = vec![
+        vec![&a[1], &a[2]],
+        vec![&a[0], &a[2]],
+        vec![&a[0], &a[1]],
+    ];
+    let ref_b: Vec<Vec<&char>> = vec![
+        vec![&b[0], &b[2]],
+        vec![&b[1], &b[2]],
+        vec![&b[1], &b[3]],
+    ];
+    let ref_both = zip_ref_vec_pair(&ref_a, &ref_b);
 
     let table = LcsTable::new(&a, &b);
-    let subsequences = table.longest_common_subsequences();
-    assert_eq!(3, subsequences.len());
-    assert!(subsequences.contains(&vec![(&'a', &'a'), (&'c', &'c')]));
-    assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
-    assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
+    let subseqs = table.longest_common_subsequences();
+    assert!(vec2_ptr_eq_pair(&ref_both, &subseqs));
+}
+
+#[test]
+fn test_longest_common_subsequences_ptr_eq() {
+    let a: Vec<_> = "xbxax".chars().collect();
+    let b: Vec<_> = "bbyay".chars().collect();
+    let ref_a: Vec<Vec<&char>> = vec![
+        vec![&a[1], &a[3]],
+        vec![&a[1], &a[3]],
+    ];
+    let ref_b: Vec<Vec<&char>> = vec![
+        vec![&b[0], &b[3]],
+        vec![&b[1], &b[3]],
+    ];
+    let ref_both = zip_ref_vec_pair(&ref_a, &ref_b);
+
+    let table = LcsTable::new(&a, &b);
+    let subseqs = table.longest_common_subsequences();
+    assert!(vec2_ptr_eq_pair(&ref_both, &subseqs));
 }
 
 #[test]
