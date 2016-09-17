@@ -209,6 +209,14 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
         rest_diff.push(to_add);
         rest_diff
     }
+
+    /// Retrieve length of longest common subsequences.
+    pub fn length(&self) -> i64 {
+        if self.a.len() == 0 || self.b.len() == 0 {
+            return 0
+        }
+        self.lengths[self.a.len()][self.b.len()]
+    }
 }
 
 #[test]
@@ -239,6 +247,7 @@ fn test_lcs_lcs() {
     let table = LcsTable::new(&a, &b);
     let lcs = table.longest_common_subsequence();
     assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
+    assert_eq!(3, table.length());
 }
 
 #[test]
@@ -252,6 +261,7 @@ fn test_longest_common_subsequences() {
     assert!(subsequences.contains(&vec![(&'a', &'a'), (&'c', &'c')]));
     assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
     assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
+    assert_eq!(2, table.length());
 }
 
 #[test]
