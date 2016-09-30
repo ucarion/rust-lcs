@@ -64,23 +64,26 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
     /// ```
     pub fn longest_common_subsequence(&self) -> Vec<(&T, &T)> {
-        self.find_lcs(self.a.len(), self.b.len())
-    }
+        let mut seq = Vec::with_capacity(self.length() as usize);
+        let mut i = self.a.len();
+        let mut j = self.b.len();
 
-    fn find_lcs(&self, i: usize, j: usize) -> Vec<(&T, &T)> {
-        if i == 0 || j == 0 {
-            return vec![];
-        }
+        loop {
+            if i == 0 || j == 0 {
+                seq.reverse();
+                return seq;
+            }
 
-        if self.a[i - 1] == self.b[j - 1] {
-            let mut prefix_lcs = self.find_lcs(i - 1, j - 1);
-            prefix_lcs.push((&self.a[i - 1], &self.b[j - 1]));
-            prefix_lcs
-        } else {
-            if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-                self.find_lcs(i, j - 1)
+            if self.a[i - 1] == self.b[j - 1] {
+                seq.push((&self.a[i - 1], &self.b[j - 1]));
+                i -= 1;
+                j -= 1;
             } else {
-                self.find_lcs(i - 1, j)
+                if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+                    j -= 1;
+                } else {
+                    i -= 1;
+                }
             }
         }
     }
