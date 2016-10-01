@@ -344,3 +344,39 @@ fn test_diff() {
         Insertion(&'c')
     ]);
 }
+
+#[test]
+fn test_empty_one() {
+    use DiffComponent::*;
+
+    let a: Vec<_> = "".chars().collect();
+    let b: Vec<_> = "abc".chars().collect();
+    let table = LcsTable::new(&a, &b);
+
+    let seq = table.longest_common_subsequence();
+    let seq_all = table.longest_common_subsequences();
+    let diff = table.diff();
+    assert_eq!(seq.len(), 0);
+    assert_eq!(seq_all.len(), 1);
+    assert!(seq_all.contains(&vec![]));
+    assert_eq!(diff, vec![
+        Insertion(&'a'),
+        Insertion(&'b'),
+        Insertion(&'c')
+    ]);
+}
+
+#[test]
+fn test_empty_both() {
+    let a: Vec<_> = "".chars().collect();
+    let b: Vec<_> = "".chars().collect();
+    let table = LcsTable::new(&a, &b);
+
+    let seq = table.longest_common_subsequence();
+    let seq_all = table.longest_common_subsequences();
+    let diff = table.diff();
+    assert_eq!(seq.len(), 0);
+    assert_eq!(seq_all.len(), 1);
+    assert!(seq_all.contains(&vec![]));
+    assert_eq!(diff.len(), 0);
+}
