@@ -227,13 +227,6 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// ]);
     /// ```
     pub fn diff(&self) -> Vec<DiffComponent<&T>> {
-        self.compute_diff(self.a.len(), self.b.len())
-    }
-
-    fn compute_diff(&self, i: usize, j: usize) -> Vec<DiffComponent<&T>> {
-        if i == 0 && j == 0 {
-            return vec![];
-        }
 
         enum DiffType {
             Insertion,
@@ -241,37 +234,44 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
             Deletion
         }
 
-        let diff_type = if i == 0 {
-            DiffType::Insertion
-        } else if j == 0 {
-            DiffType::Deletion
-        } else if self.a[i - 1] == self.b[j - 1] {
-            DiffType::Unchanged
-        } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-            DiffType::Insertion
-        } else {
-            DiffType::Deletion
-        };
+        let mut i = self.a.len();
+        let mut j = self.b.len();
+        let mut diff = Vec::new();
 
-        let (to_add, mut rest_diff) = match diff_type {
-            DiffType::Insertion => {
-                (DiffComponent::Insertion(&self.b[j - 1]),
-                    self.compute_diff(i, j - 1))
-            },
-
-            DiffType::Unchanged => {
-                (DiffComponent::Unchanged(&self.a[i - 1], &self.b[j - 1]),
-                    self.compute_diff(i - 1, j - 1))
-            },
-
-            DiffType::Deletion => {
-                (DiffComponent::Deletion(&self.a[i - 1]),
-                    self.compute_diff(i - 1, j))
+        loop {
+            if i == 0 && j == 0 {
+                diff.reverse();
+                return diff;
             }
-        };
 
-        rest_diff.push(to_add);
-        rest_diff
+            let diff_type = if i == 0 {
+                DiffType::Insertion
+            } else if j == 0 {
+                DiffType::Deletion
+            } else if self.a[i - 1] == self.b[j - 1] {
+                DiffType::Unchanged
+            } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+                DiffType::Insertion
+            } else {
+                DiffType::Deletion
+            };
+
+            match diff_type {
+                DiffType::Insertion => {
+                    diff.push(DiffComponent::Insertion(&self.b[j - 1]));
+                    j -= 1;
+                },
+                DiffType::Deletion => {
+                    diff.push(DiffComponent::Deletion(&self.a[i - 1]));
+                    i -= 1;
+                },
+                DiffType::Unchanged => {
+                    diff.push(DiffComponent::Unchanged(&self.a[i - 1], &self.b[j - 1]));
+                    i -= 1;
+                    j -= 1;
+                }
+            }
+        }
     }
 
     /// Retrieve length of longest common subsequences.
