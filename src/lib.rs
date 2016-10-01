@@ -109,41 +109,102 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// ```
     pub fn longest_common_subsequences(&self) -> HashSet<Vec<(&T, &T)>>
             where T: Hash {
-        self.find_all_lcs(self.a.len(), self.b.len())
-    }
 
-    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<(&T, &T)>>
-            where T: Hash {
-        if i == 0 || j == 0 {
-            let mut ret = HashSet::new();
-            ret.insert(vec![]);
-            return ret;
+        // This implements a recursive traversal algorithm with an explicit stack
+
+        // Transversal direction
+        #[derive(Debug, Copy, Clone)]
+        enum Dir {
+            GoAB,   // Try to traverse down self.a and self.b
+            GoB,    // Try to traverse down self.b
+            GoA,    // Try to traverse down self.a
+            GoBack  // Traverse back up previous to position
         }
 
-        if self.a[i - 1] == self.b[j - 1] {
-            let mut sequences = HashSet::new();
-            for mut lcs in self.find_all_lcs(i - 1, j - 1) {
-                lcs.push((&self.a[i - 1], &self.b[j - 1]));
-                sequences.insert(lcs);
-            }
-            sequences
-        } else {
-            let mut sequences = HashSet::new();
-
-            if self.lengths[i][j - 1] >= self.lengths[i - 1][j] {
-                for lsc in self.find_all_lcs(i, j - 1) {
-                    sequences.insert(lsc);
-                }
-            }
-
-            if self.lengths[i - 1][j] >= self.lengths[i][j - 1] {
-                for lsc in self.find_all_lcs(i - 1, j) {
-                    sequences.insert(lsc);
-                }
-            }
-
-            sequences
+        // Traversal state
+        #[derive(Debug, Copy, Clone)]
+        struct State {
+            i: usize,  // Current index into self.a
+            j: usize,  // Current index into self.b
+            dir: Dir,  // Current Transversal direction
+            pop: bool  // Should we pop from seq vector when pop this state.
         }
+
+        // Set of all unique longest common subsequences we find
+        let mut set = HashSet::new();
+
+        // Subsequence in reverse order
+        let mut seq = Vec::with_capacity(self.length() as usize);
+
+        // Explicit recursion stack
+        let mut stack: Vec<State> = Vec::with_capacity(cmp::max(self.a.len(), self.b.len()));
+        stack.push(State{i: self.a.len(), j: self.b.len(), dir: Dir::GoAB, pop: false});
+
+        loop {
+            // Copy current state
+            let state = *stack.last().unwrap();
+
+            match state.dir {
+                Dir::GoAB => {
+                    if state.i == 0 || state.j == 0 {
+                        // We have found one of the longest common subsequences
+                        let mut new = seq.clone();
+                        new.reverse();
+                        set.insert(new);
+
+                        // Next, traverse back up to previous to position
+                        stack.last_mut().unwrap().dir = Dir::GoBack;
+                    }
+                    else if self.a[state.i - 1] == self.b[state.j - 1] {
+                        // We have found common element.
+                        seq.push((&self.a[state.i - 1], &self.b[state.j - 1]));
+
+                        // Make sure the element is poped when we traverse back up
+                        {
+                            let mut c = stack.last_mut().unwrap();
+                            c.dir = Dir::GoBack;
+                            c.pop = true;
+                        }
+
+                        // Traverse down both a and b and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i - 1, j: state.j - 1, dir: Dir::GoAB, pop: false});
+                    } else {
+                        // Next, try to traverse down b
+                        stack.last_mut().unwrap().dir = Dir::GoB;
+                    }
+                },
+                Dir::GoB => {
+                    // Next, try to traverse down a
+                    stack.last_mut().unwrap().dir = Dir::GoA;
+
+                    if self.lengths[state.i][state.j - 1] >= self.lengths[state.i - 1][state.j] {
+                        // Traverse down b and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i, j: state.j - 1, dir: Dir::GoAB, pop: false});
+                    }
+                },
+                Dir::GoA => {
+                    // Next, traverse back up to previous to position
+                    stack.last_mut().unwrap().dir = Dir::GoBack;
+
+                    if self.lengths[state.i - 1][state.j] >= self.lengths[state.i][state.j - 1] {
+                        // Traverse down a and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i - 1, j: state.j, dir: Dir::GoAB, pop: false});
+                    }
+                },
+                Dir::GoBack => {
+                    stack.pop();
+
+                    if stack.is_empty() {
+                        break;
+                    }
+
+                    if stack.last_mut().unwrap().pop {
+                        seq.pop();
+                    }
+                }
+            }
+        }
+        set
     }
 
     /// Computes a diff from `a` to `b`.
