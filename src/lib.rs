@@ -64,23 +64,26 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
     /// ```
     pub fn longest_common_subsequence(&self) -> Vec<(&T, &T)> {
-        self.find_lcs(self.a.len(), self.b.len())
-    }
+        let mut seq = Vec::with_capacity(self.length() as usize);
+        let mut i = self.a.len();
+        let mut j = self.b.len();
 
-    fn find_lcs(&self, i: usize, j: usize) -> Vec<(&T, &T)> {
-        if i == 0 || j == 0 {
-            return vec![];
-        }
+        loop {
+            if i == 0 || j == 0 {
+                seq.reverse();
+                return seq;
+            }
 
-        if self.a[i - 1] == self.b[j - 1] {
-            let mut prefix_lcs = self.find_lcs(i - 1, j - 1);
-            prefix_lcs.push((&self.a[i - 1], &self.b[j - 1]));
-            prefix_lcs
-        } else {
-            if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-                self.find_lcs(i, j - 1)
+            if self.a[i - 1] == self.b[j - 1] {
+                seq.push((&self.a[i - 1], &self.b[j - 1]));
+                i -= 1;
+                j -= 1;
             } else {
-                self.find_lcs(i - 1, j)
+                if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+                    j -= 1;
+                } else {
+                    i -= 1;
+                }
             }
         }
     }
@@ -106,41 +109,102 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// ```
     pub fn longest_common_subsequences(&self) -> HashSet<Vec<(&T, &T)>>
             where T: Hash {
-        self.find_all_lcs(self.a.len(), self.b.len())
-    }
 
-    fn find_all_lcs(&self, i: usize, j: usize) -> HashSet<Vec<(&T, &T)>>
-            where T: Hash {
-        if i == 0 || j == 0 {
-            let mut ret = HashSet::new();
-            ret.insert(vec![]);
-            return ret;
+        // This implements a recursive traversal algorithm with an explicit stack
+
+        // Transversal direction
+        #[derive(Debug, Copy, Clone)]
+        enum Dir {
+            GoAB,   // Try to traverse down self.a and self.b
+            GoB,    // Try to traverse down self.b
+            GoA,    // Try to traverse down self.a
+            GoBack  // Traverse back up previous to position
         }
 
-        if self.a[i - 1] == self.b[j - 1] {
-            let mut sequences = HashSet::new();
-            for mut lcs in self.find_all_lcs(i - 1, j - 1) {
-                lcs.push((&self.a[i - 1], &self.b[j - 1]));
-                sequences.insert(lcs);
-            }
-            sequences
-        } else {
-            let mut sequences = HashSet::new();
-
-            if self.lengths[i][j - 1] >= self.lengths[i - 1][j] {
-                for lsc in self.find_all_lcs(i, j - 1) {
-                    sequences.insert(lsc);
-                }
-            }
-
-            if self.lengths[i - 1][j] >= self.lengths[i][j - 1] {
-                for lsc in self.find_all_lcs(i - 1, j) {
-                    sequences.insert(lsc);
-                }
-            }
-
-            sequences
+        // Traversal state
+        #[derive(Debug, Copy, Clone)]
+        struct State {
+            i: usize,  // Current index into self.a
+            j: usize,  // Current index into self.b
+            dir: Dir,  // Current Transversal direction
+            pop: bool  // Should we pop from seq vector when pop this state.
         }
+
+        // Set of all unique longest common subsequences we find
+        let mut set = HashSet::new();
+
+        // Subsequence in reverse order
+        let mut seq = Vec::with_capacity(self.length() as usize);
+
+        // Explicit recursion stack
+        let mut stack: Vec<State> = Vec::with_capacity(cmp::max(self.a.len(), self.b.len()));
+        stack.push(State{i: self.a.len(), j: self.b.len(), dir: Dir::GoAB, pop: false});
+
+        loop {
+            // Copy current state
+            let state = *stack.last().unwrap();
+
+            match state.dir {
+                Dir::GoAB => {
+                    if state.i == 0 || state.j == 0 {
+                        // We have found one of the longest common subsequences
+                        let mut new = seq.clone();
+                        new.reverse();
+                        set.insert(new);
+
+                        // Next, traverse back up to previous to position
+                        stack.last_mut().unwrap().dir = Dir::GoBack;
+                    }
+                    else if self.a[state.i - 1] == self.b[state.j - 1] {
+                        // We have found common element.
+                        seq.push((&self.a[state.i - 1], &self.b[state.j - 1]));
+
+                        // Make sure the element is poped when we traverse back up
+                        {
+                            let mut c = stack.last_mut().unwrap();
+                            c.dir = Dir::GoBack;
+                            c.pop = true;
+                        }
+
+                        // Traverse down both a and b and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i - 1, j: state.j - 1, dir: Dir::GoAB, pop: false});
+                    } else {
+                        // Next, try to traverse down b
+                        stack.last_mut().unwrap().dir = Dir::GoB;
+                    }
+                },
+                Dir::GoB => {
+                    // Next, try to traverse down a
+                    stack.last_mut().unwrap().dir = Dir::GoA;
+
+                    if self.lengths[state.i][state.j - 1] >= self.lengths[state.i - 1][state.j] {
+                        // Traverse down b and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i, j: state.j - 1, dir: Dir::GoAB, pop: false});
+                    }
+                },
+                Dir::GoA => {
+                    // Next, traverse back up to previous to position
+                    stack.last_mut().unwrap().dir = Dir::GoBack;
+
+                    if self.lengths[state.i - 1][state.j] >= self.lengths[state.i][state.j - 1] {
+                        // Traverse down a and try to traverse down a and b from the new position
+                        stack.push(State{i: state.i - 1, j: state.j, dir: Dir::GoAB, pop: false});
+                    }
+                },
+                Dir::GoBack => {
+                    stack.pop();
+
+                    if stack.is_empty() {
+                        break;
+                    }
+
+                    if stack.last_mut().unwrap().pop {
+                        seq.pop();
+                    }
+                }
+            }
+        }
+        set
     }
 
     /// Computes a diff from `a` to `b`.
@@ -163,13 +227,6 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// ]);
     /// ```
     pub fn diff(&self) -> Vec<DiffComponent<&T>> {
-        self.compute_diff(self.a.len(), self.b.len())
-    }
-
-    fn compute_diff(&self, i: usize, j: usize) -> Vec<DiffComponent<&T>> {
-        if i == 0 && j == 0 {
-            return vec![];
-        }
 
         enum DiffType {
             Insertion,
@@ -177,37 +234,52 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
             Deletion
         }
 
-        let diff_type = if i == 0 {
-            DiffType::Insertion
-        } else if j == 0 {
-            DiffType::Deletion
-        } else if self.a[i - 1] == self.b[j - 1] {
-            DiffType::Unchanged
-        } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
-            DiffType::Insertion
-        } else {
-            DiffType::Deletion
-        };
+        let mut i = self.a.len();
+        let mut j = self.b.len();
+        let mut diff = Vec::new();
 
-        let (to_add, mut rest_diff) = match diff_type {
-            DiffType::Insertion => {
-                (DiffComponent::Insertion(&self.b[j - 1]),
-                    self.compute_diff(i, j - 1))
-            },
-
-            DiffType::Unchanged => {
-                (DiffComponent::Unchanged(&self.a[i - 1], &self.b[j - 1]),
-                    self.compute_diff(i - 1, j - 1))
-            },
-
-            DiffType::Deletion => {
-                (DiffComponent::Deletion(&self.a[i - 1]),
-                    self.compute_diff(i - 1, j))
+        loop {
+            if i == 0 && j == 0 {
+                diff.reverse();
+                return diff;
             }
-        };
 
-        rest_diff.push(to_add);
-        rest_diff
+            let diff_type = if i == 0 {
+                DiffType::Insertion
+            } else if j == 0 {
+                DiffType::Deletion
+            } else if self.a[i - 1] == self.b[j - 1] {
+                DiffType::Unchanged
+            } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+                DiffType::Insertion
+            } else {
+                DiffType::Deletion
+            };
+
+            match diff_type {
+                DiffType::Insertion => {
+                    diff.push(DiffComponent::Insertion(&self.b[j - 1]));
+                    j -= 1;
+                },
+                DiffType::Deletion => {
+                    diff.push(DiffComponent::Deletion(&self.a[i - 1]));
+                    i -= 1;
+                },
+                DiffType::Unchanged => {
+                    diff.push(DiffComponent::Unchanged(&self.a[i - 1], &self.b[j - 1]));
+                    i -= 1;
+                    j -= 1;
+                }
+            }
+        }
+    }
+
+    /// Retrieve length of longest common subsequences.
+    pub fn length(&self) -> i64 {
+        if self.a.len() == 0 || self.b.len() == 0 {
+            return 0
+        }
+        self.lengths[self.a.len()][self.b.len()]
     }
 }
 
@@ -239,6 +311,7 @@ fn test_lcs_lcs() {
     let table = LcsTable::new(&a, &b);
     let lcs = table.longest_common_subsequence();
     assert_eq!(vec![(&'a', &'a'), (&'b', &'b'), (&'c', &'c')], lcs);
+    assert_eq!(3, table.length());
 }
 
 #[test]
@@ -252,6 +325,7 @@ fn test_longest_common_subsequences() {
     assert!(subsequences.contains(&vec![(&'a', &'a'), (&'c', &'c')]));
     assert!(subsequences.contains(&vec![(&'g', &'g'), (&'a', &'a')]));
     assert!(subsequences.contains(&vec![(&'g', &'g'), (&'c', &'c')]));
+    assert_eq!(2, table.length());
 }
 
 #[test]
@@ -269,4 +343,40 @@ fn test_diff() {
         Unchanged(&'b', &'b'),
         Insertion(&'c')
     ]);
+}
+
+#[test]
+fn test_empty_one() {
+    use DiffComponent::*;
+
+    let a: Vec<_> = "".chars().collect();
+    let b: Vec<_> = "abc".chars().collect();
+    let table = LcsTable::new(&a, &b);
+
+    let seq = table.longest_common_subsequence();
+    let seq_all = table.longest_common_subsequences();
+    let diff = table.diff();
+    assert_eq!(seq.len(), 0);
+    assert_eq!(seq_all.len(), 1);
+    assert!(seq_all.contains(&vec![]));
+    assert_eq!(diff, vec![
+        Insertion(&'a'),
+        Insertion(&'b'),
+        Insertion(&'c')
+    ]);
+}
+
+#[test]
+fn test_empty_both() {
+    let a: Vec<_> = "".chars().collect();
+    let b: Vec<_> = "".chars().collect();
+    let table = LcsTable::new(&a, &b);
+
+    let seq = table.longest_common_subsequence();
+    let seq_all = table.longest_common_subsequences();
+    let diff = table.diff();
+    assert_eq!(seq.len(), 0);
+    assert_eq!(seq_all.len(), 1);
+    assert!(seq_all.contains(&vec![]));
+    assert_eq!(diff.len(), 0);
 }
