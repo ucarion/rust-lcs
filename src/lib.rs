@@ -10,10 +10,13 @@ use std::cmp;
 use std::hash::Hash;
 use std::collections::HashSet;
 
+const BMAX: u64 = std::u8::MAX as u64;
+const WMAX: u64 = std::u16::MAX as u64;
+const DWMAX: u64 = std::u32::MAX as u64;
+
 #[derive(Debug)]
 pub struct LcsTable<'a, T: 'a> {
-    lengths: Vec<Vec<i64>>,
-
+    lengths: DynTable,
     a: &'a [T],
     b: &'a [T]
 }
@@ -25,21 +28,30 @@ pub enum DiffComponent<T> {
     Deletion(T)
 }
 
+#[derive(Debug)]
+enum DynTable {
+   Byte { table:  Vec<u8>,  pitch: usize },
+   Word { table:  Vec<u16>, pitch: usize },
+   Dword { table: Vec<u32>, pitch: usize },
+   Qword { table: Vec<u64>, pitch: usize }
+}
+
 /// Finding longest common subsequences ("LCS") between two sequences requires constructing a *n x
 /// m* table (where the two sequences are of lengths *n* and *m*). This is expensive to construct
 /// and there's a lot of stuff you can calculate using it, so `LcsTable` holds onto this data.
 impl<'a, T> LcsTable<'a, T> where T: Eq {
     /// Constructs a LcsTable for matching between two sequences `a` and `b`.
     pub fn new(a: &'a [T], b: &'a [T]) -> LcsTable<'a, T> {
-        let mut lengths = vec![vec![0; b.len() + 1]; a.len() + 1];
+        let mut lengths = DynTable::new(a, b);
 
         for i in 0..a.len() {
             for j in 0..b.len() {
-                lengths[i + 1][j + 1] = if a[i] == b[j] {
-                    1 + lengths[i][j]
+                let val = if a[i] == b[j] {
+                    1 + lengths.get(j, i)
                 } else {
-                    cmp::max(lengths[i + 1][j], lengths[i][j + 1])
-                }
+                    cmp::max(lengths.get(j, i + 1), lengths.get(j + 1, i))
+                };
+                lengths.set(j + 1, i + 1, val);
             }
         }
 
@@ -77,7 +89,7 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
             prefix_lcs.push((&self.a[i - 1], &self.b[j - 1]));
             prefix_lcs
         } else {
-            if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+            if self.lengths.get(j - 1, i) > self.lengths.get(j, i - 1) {
                 self.find_lcs(i, j - 1)
             } else {
                 self.find_lcs(i - 1, j)
@@ -127,13 +139,13 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
         } else {
             let mut sequences = HashSet::new();
 
-            if self.lengths[i][j - 1] >= self.lengths[i - 1][j] {
+            if self.lengths.get(j - 1, i) >= self.lengths.get(j, i - 1) {
                 for lsc in self.find_all_lcs(i, j - 1) {
                     sequences.insert(lsc);
                 }
             }
 
-            if self.lengths[i - 1][j] >= self.lengths[i][j - 1] {
+            if self.lengths.get(j, i - 1) >= self.lengths.get(j - 1, i) {
                 for lsc in self.find_all_lcs(i - 1, j) {
                     sequences.insert(lsc);
                 }
@@ -183,7 +195,7 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
             DiffType::Deletion
         } else if self.a[i - 1] == self.b[j - 1] {
             DiffType::Unchanged
-        } else if self.lengths[i][j - 1] > self.lengths[i - 1][j] {
+        } else if self.lengths.get(j - 1, i) > self.lengths.get(j, i - 1) {
             DiffType::Insertion
         } else {
             DiffType::Deletion
@@ -211,6 +223,81 @@ impl<'a, T> LcsTable<'a, T> where T: Eq {
     }
 }
 
+impl DynTable {
+    fn new<T>(a: &[T], b: &[T]) -> DynTable {
+        let size = (a.len() + 1) as u64 * (b.len() + 1) as u64;
+        if size >= std::usize::MAX as u64 {
+            panic!("Size of DynTable larger than usize::MAX.");
+        }
+
+        let max_len = cmp::max(a.len() as u64 + 1, b.len() as u64 + 1);
+        let pitch = b.len() + 1;
+
+        match max_len {
+            0 ... BMAX => {
+                DynTable::Byte {
+                    table: vec![0; size as usize],
+                    pitch: pitch
+                }
+            },
+            BMAX ... WMAX => {
+                DynTable::Word {
+                    table: vec![0; size as usize],
+                    pitch: pitch
+                }
+            },
+            WMAX ... DWMAX => {
+                DynTable::Dword {
+                    table: vec![0; size as usize],
+                    pitch: pitch
+                }
+            },
+            _ => {
+                DynTable::Qword {
+                    table: vec![0; size as usize],
+                    pitch: pitch
+                }
+            },
+        }
+    }
+
+    #[inline]
+    fn get(&self, x: usize, y: usize) -> usize {
+        match *self {
+            DynTable::Byte{ref table, ref pitch, ..} => {
+                table[y * pitch + x] as usize
+            },
+            DynTable::Word{ref table, ref pitch, ..} => {
+                table[y * pitch + x] as usize
+            },
+            DynTable::Dword{ref table, ref pitch, ..} => {
+                table[y * pitch + x] as usize
+            },
+            DynTable::Qword{ref table, ref pitch, ..} => {
+                table[y * pitch + x] as usize
+            },
+        }
+    }
+
+    #[inline]
+    fn set(&mut self, x: usize, y: usize, value: usize) {
+        match *self {
+            DynTable::Byte{ref mut table, ref pitch, ..} => {
+                table[y * pitch + x] = value as u8;
+            },
+            DynTable::Word{ref mut table, ref pitch, ..} => {
+                table[y * pitch + x] = value as u16;
+            },
+            DynTable::Dword{ref mut table, ref pitch, ..} => {
+                table[y * pitch + x] = value as u32;
+            },
+            DynTable::Qword{ref mut table, ref pitch, ..} => {
+                table[y * pitch + x] = value as u64
+            },
+        };
+    }
+}
+
 #[test]
 fn test_lcs_table() {
     // Example taken from:
@@ -220,15 +307,21 @@ fn test_lcs_table() {
     let a: Vec<_> = "gac".chars().collect();
     let b: Vec<_> = "agcat".chars().collect();
 
-    let actual_lengths = LcsTable::new(&a, &b).lengths;
-    let expected_lengths = vec![
-        vec![0, 0, 0, 0, 0, 0],
-        vec![0, 0, 1, 1, 1, 1],
-        vec![0, 1, 1, 1, 2, 2],
-        vec![0, 1, 1, 2, 2, 2]
+    let expected_table = vec![
+        0, 0, 0, 0, 0, 0,
+        0, 0, 1, 1, 1, 1,
+        0, 1, 1, 1, 2, 2,
+        0, 1, 1, 2, 2, 2
     ];
 
-    assert_eq!(expected_lengths, actual_lengths);
+    let dyn_table = LcsTable::new(&a, &b).lengths;
+    match dyn_table {
+        DynTable::Byte{table, pitch} => {
+            assert_eq!(table, expected_table);
+            assert_eq!(pitch, 6);
+        },
+        _ => { assert!(false);}
+    }
 }
 
 #[test]
